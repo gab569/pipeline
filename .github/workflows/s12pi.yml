@@ -1,0 +1,35 @@
+name: CI/CD Learning Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+
+  # =========================================================
+  # JOB 1: CHECKOUT REPOSITORY
+  # =========================================================
+  checkout:
+    name: Checkout Repository
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Step 1: Clone/checkout the repository onto the runner
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Confirm where we are
+      - name: Show Current Directory
+        run: pwd
+
+      # Step 3: List the repository contents
+      - name: List Repository Contents
+        run: ls -la
