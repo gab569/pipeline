@@ -35,52 +35,135 @@ jobs:
         run: ls -la
 
 
-  # =========================================================
-  # JOB 2: DOCKER SETUP AND VERIFICATION
-  # =========================================================
+  # # ============================================================
+  # 2. DOCKER & DOCKER COMPOSE SETUP AND VALIDATION
+  # ============================================================
   docker-setup:
-    name: Docker Setup and Verification
+    name: 02 - Docker & Docker Compose Setup
     runs-on: ubuntu-latest
     needs: checkout
 
     steps:
 
-      # Step 1: Check if Docker is installed.
-      # If Docker is missing, install it.
-      - name: Check and Install Docker
+      # --------------------------------------------------------
+      # Check Docker
+      # --------------------------------------------------------
+      - name: Check Docker
         run: |
+          echo "Checking Docker installation..."
+
           if command -v docker >/dev/null 2>&1; then
             echo "Docker is already installed."
+            docker --version
           else
-            echo "Docker is not installed."
+            echo "Docker is NOT installed."
             echo "Installing Docker..."
 
             sudo apt-get update
             sudo apt-get install -y docker.io
 
             echo "Docker installation completed."
+            docker --version
           fi
 
-      # Step 2: Verify Docker installation
+
+      # --------------------------------------------------------
+      # Check Docker Compose
+      # --------------------------------------------------------
+      - name: Check Docker Compose
+        run: |
+          echo "Checking Docker Compose installation..."
+
+          if docker compose version >/dev/null 2>&1; then
+            echo "Docker Compose is already installed."
+            docker compose version
+          else
+            echo "Docker Compose is NOT installed."
+            echo "Installing Docker Compose..."
+
+            sudo apt-get update
+            sudo apt-get install -y docker-compose-plugin
+
+            echo "Docker Compose installation completed."
+            docker compose version
+          fi
+
+
+      # --------------------------------------------------------
+      # Verify Docker
+      # --------------------------------------------------------
       - name: Verify Docker
         run: |
-          echo "Checking Docker version..."
+          echo "Docker Version:"
           docker --version
 
-      # Step 3: Pull a public image from Docker Hub
-      - name: Pull Docker Image
-        run: |
-          echo "Pulling nginx image from Docker Hub..."
-          docker pull nginx:latest
+          echo ""
+          echo "Docker Engine Information:"
+          docker info
 
-      # Step 4: Tag the Docker image
-      - name: Tag Docker Image
-        run: |
-          echo "Tagging nginx image..."
-          docker tag nginx:latest learning-nginx:v1
 
-      # Step 5: List Docker images
+      # --------------------------------------------------------
+      # Verify Docker Compose
+      # --------------------------------------------------------
+      - name: Verify Docker Compose
+        run: |
+          echo "Docker Compose Version:"
+          docker compose version
+
+
+      # --------------------------------------------------------
+      # Pull Public Image
+      # --------------------------------------------------------
+      - name: Pull Test Docker Image
+        run: |
+          echo "Pulling hello-world image from Docker Hub..."
+
+          docker pull hello-world:latest
+
+          echo "Image pulled successfully."
+
+
+      # --------------------------------------------------------
+      # List Docker Images
+      # --------------------------------------------------------
       - name: List Docker Images
         run: |
-          echo "Listing Docker images available on the runner..."
+          echo "Docker images currently available:"
           docker images
+
+
+      # --------------------------------------------------------
+      # Run Test Container
+      # --------------------------------------------------------
+      - name: Test Docker
+        run: |
+          echo "Running hello-world container..."
+
+          docker run --rm hello-world
+
+          echo "Docker test completed successfully."
+
+
+      # --------------------------------------------------------
+      # Final Docker Environment Validation
+      # --------------------------------------------------------
+      - name: Docker Environment Summary
+        run: |
+          echo "========================================"
+          echo "Docker Environment Summary"
+          echo "========================================"
+
+          echo ""
+          echo "Docker:"
+          docker --version
+
+          echo ""
+          echo "Docker Compose:"
+          docker compose version
+
+          echo ""
+          echo "Available Docker Images:"
+          docker images
+
+          echo ""
+          echo "Docker and Docker Compose are ready."
