@@ -176,3 +176,59 @@ jobs:
           echo "Both images are available in GHCR."
           echo "Backend: ${API_IMAGE}:${GITHUB_SHA}"
           echo "Frontend: ${WEB_IMAGE}:${GITHUB_SHA}"
+
+
+  # =========================================================
+  # JOB 5: VALIDATE KUBERNETES MANIFESTS
+  # =========================================================
+  validate-manifests:
+    name: 05 - Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    needs: publish-images
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: List Kubernetes Manifests
+        run: |
+          echo "Listing Kubernetes manifest files..."
+          ls -la kubernetes/
+
+      - name: Check Required Files
+        run: |
+          echo "Checking required Kubernetes files..."
+
+          test -f kubernetes/namespace.yaml
+          test -f kubernetes/backend-deployment.yaml
+          test -f kubernetes/backend-service.yaml
+          test -f kubernetes/frontend-deployment.yaml
+          test -f kubernetes/frontend-service.yaml
+
+          echo "All required manifest files exist."
+
+      - name: Install Kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          echo "Validating Kubernetes manifests..."
+
+          kubectl create \
+            --dry-run=client \
+            --validate=false \
+            -f kubernetes/ \
+            -o name
+
+          echo "Kubernetes manifest validation completed."
+
+      - name: Display Deployment Images
+        run: |
+          echo "Backend image:"
+          grep 'image:' kubernetes/backend-deployment.yaml
+
+          echo "Frontend image:"
+          grep 'image:' kubernetes/frontend-deployment.yaml

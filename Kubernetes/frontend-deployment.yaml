@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: k8s-learn-web
+  namespace: s11gabriel
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: k8s-learn-web
+
+  template:
+    metadata:
+      labels:
+        app: k8s-learn-web
+
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/gab569/k8s-learn-web:0b4ed2b88900ce962e42aa4edbd963ccb605a46b
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          

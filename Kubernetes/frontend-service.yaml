@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: k8s-learn-web-service
+  namespace: s11gabriel
+
+spec:
+  type: ClusterIP
+
+  selector:
+    app: k8s-learn-web
+
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
