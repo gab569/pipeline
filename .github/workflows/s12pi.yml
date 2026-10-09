@@ -1,3 +1,4 @@
+
 name: CI/CD Learning Pipeline
 
 on:
@@ -12,165 +13,57 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  # =========================================================
-  # JOB 1: CHECKOUT REPOSITORY
-  # =========================================================
+  # JOB 1: CHECKOUT
   checkout:
-    name: Checkout Repository
+    name: 01 - Checkout Repository
     runs-on: ubuntu-latest
 
     steps:
-
-      # Step 1: Checkout the repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Step 2: Show current working directory
       - name: Show Current Directory
         run: pwd
 
-      # Step 3: List repository contents
       - name: List Repository Contents
         run: ls -la
 
-
-  # # ============================================================
-  # 2. DOCKER & DOCKER COMPOSE SETUP AND VALIDATION
-  # ============================================================
+  # JOB 2: DOCKER ENVIRONMENT
   docker-setup:
-    name: 02 - Docker & Docker Compose Setup
+    name: 02 - Docker Setup and Verification
     runs-on: ubuntu-latest
     needs: checkout
 
     steps:
-
-      # --------------------------------------------------------
-      # Check Docker
-      # --------------------------------------------------------
-      - name: Check Docker
+      - name: Check and Install Docker
         run: |
-          echo "Checking Docker installation..."
-
-          if command -v docker >/dev/null 2>&1; then
-            echo "Docker is already installed."
-            docker --version
-          else
-            echo "Docker is NOT installed."
-            echo "Installing Docker..."
-
+          if ! command -v docker >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y docker.io
-
-            echo "Docker installation completed."
-            docker --version
           fi
+          docker --version
 
-
-      # --------------------------------------------------------
-      # Check Docker Compose
-      # --------------------------------------------------------
       - name: Check Docker Compose
         run: |
-          echo "Checking Docker Compose installation..."
-
-          if docker compose version >/dev/null 2>&1; then
-            echo "Docker Compose is already installed."
-            docker compose version
-          else
-            echo "Docker Compose is NOT installed."
-            echo "Installing Docker Compose..."
-
+          if ! docker compose version >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y docker-compose-plugin
-
-            echo "Docker Compose installation completed."
-            docker compose version
           fi
-
-
-      # --------------------------------------------------------
-      # Verify Docker
-      # --------------------------------------------------------
-      - name: Verify Docker
-        run: |
-          echo "Docker Version:"
-          docker --version
-
-          echo ""
-          echo "Docker Engine Information:"
-          docker info
-
-
-      # --------------------------------------------------------
-      # Verify Docker Compose
-      # --------------------------------------------------------
-      - name: Verify Docker Compose
-        run: |
-          echo "Docker Compose Version:"
           docker compose version
 
+      - name: Verify Docker Engine
+        run: docker info
 
-      # --------------------------------------------------------
-      # Pull Public Image
-      # --------------------------------------------------------
-      - name: Pull Test Docker Image
-        run: |
-          echo "Pulling hello-world image from Docker Hub..."
+      - name: Pull Test Image
+        run: docker pull hello-world:latest
 
-          docker pull hello-world:latest
-
-          echo "Image pulled successfully."
-
-
-      # --------------------------------------------------------
-      # List Docker Images
-      # --------------------------------------------------------
       - name: List Docker Images
-        run: |
-          echo "Docker images currently available:"
-          docker images
+        run: docker images
 
+      - name: Run Test Container
+        run: docker run --rm hello-world
 
-      # --------------------------------------------------------
-      # Run Test Container
-      # --------------------------------------------------------
-      - name: Test Docker
-        run: |
-          echo "Running hello-world container..."
-
-          docker run --rm hello-world
-
-          echo "Docker test completed successfully."
-
-
-      # --------------------------------------------------------
-      # Final Docker Environment Validation
-      # --------------------------------------------------------
-      - name: Docker Environment Summary
-        run: |
-          echo "========================================"
-          echo "Docker Environment Summary"
-          echo "========================================"
-
-          echo ""
-          echo "Docker:"
-          docker --version
-
-          echo ""
-          echo "Docker Compose:"
-          docker compose version
-
-          echo ""
-          echo "Available Docker Images:"
-          docker images
-
-          echo ""
-          echo "Docker and Docker Compose are ready."
-
-  # =========================================================
   # JOB 3: BUILD APPLICATION IMAGES
-  # =========================================================
   build-images:
     name: 03 - Build Application Images
     runs-on: ubuntu-latest
@@ -183,21 +76,103 @@ jobs:
         working-directory: k8s-learning-app
 
     steps:
-      # Each job has its own runner, so checkout is required here too.
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Build Backend Image
-        run: docker build --tag "k8s-learn-api:${GITHUB_SHA}" ./backend
+        run: |
+          docker build \
+            -t "k8s-learn-api:${GITHUB_SHA}" \
+            ./backend
 
       - name: Build Frontend Image
-        run: docker build --tag "k8s-learn-web:${GITHUB_SHA}" ./frontend
+        run: |
+          docker build \
+            -t "k8s-learn-web:${GITHUB_SHA}" \
+            ./frontend
 
       - name: Verify Application Images
         run: |
-          docker image inspect "k8s-learn-api:${GITHUB_SHA}" --format '{{.RepoTags}} {{.Id}}'
-          docker image inspect "k8s-learn-web:${GITHUB_SHA}" --format '{{.RepoTags}} {{.Id}}'
+          docker image inspect "k8s-learn-api:${GITHUB_SHA}"
+          docker image inspect "k8s-learn-web:${GITHUB_SHA}"
 
-      - name: List Built Application Images
+      - name: List Built Images
+        run: docker images
+
+  # JOB 4: AUTHENTICATE, TAG AND PUSH TO GHCR
+  publish-images:
+    name: 04 - Publish Images to GHCR
+    runs-on: ubuntu-latest
+    needs: build-images
+
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event_name != 'pull_request'
+
+    permissions:
+      contents: read
+      packages: write
+
+    defaults:
+      run:
+        working-directory: k8s-learning-app
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare GHCR Image Names
         run: |
-          docker image ls --filter "reference=k8s-learn-api:${GITHUB_SHA}" --filter "reference=k8s-learn-web:${GITHUB_SHA}"
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+
+          echo "API_IMAGE=ghcr.io/${OWNER}/k8s-learn-api" >> "$GITHUB_ENV"
+          echo "WEB_IMAGE=ghcr.io/${OWNER}/k8s-learn-web" >> "$GITHUB_ENV"
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Backend Image
+        run: |
+          docker build \
+            -t "k8s-learn-api:${GITHUB_SHA}" \
+            ./backend
+
+      - name: Build Frontend Image
+        run: |
+          docker build \
+            -t "k8s-learn-web:${GITHUB_SHA}" \
+            ./frontend
+
+      - name: Tag Backend Image
+        run: |
+          docker tag \
+            "k8s-learn-api:${GITHUB_SHA}" \
+            "${API_IMAGE}:${GITHUB_SHA}"
+
+      - name: Tag Frontend Image
+        run: |
+          docker tag \
+            "k8s-learn-web:${GITHUB_SHA}" \
+            "${WEB_IMAGE}:${GITHUB_SHA}"
+
+      - name: List Tagged Images
+        run: docker images
+
+      - name: Push Backend Image to GHCR
+        run: docker push "${API_IMAGE}:${GITHUB_SHA}"
+
+      - name: Push Frontend Image to GHCR
+        run: docker push "${WEB_IMAGE}:${GITHUB_SHA}"
+
+      - name: Verify Published Images
+        run: |
+          docker manifest inspect "${API_IMAGE}:${GITHUB_SHA}" > /dev/null
+          docker manifest inspect "${WEB_IMAGE}:${GITHUB_SHA}" > /dev/null
+
+          echo "Both images are available in GHCR."
+          echo "Backend: ${API_IMAGE}:${GITHUB_SHA}"
+          echo "Frontend: ${WEB_IMAGE}:${GITHUB_SHA}"
