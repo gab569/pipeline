@@ -213,17 +213,18 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v4
 
+      
       - name: Validate Kubernetes Manifests
         run: |
           echo "Validating Kubernetes manifests..."
 
-          kubectl create \
-            --dry-run=client \
-            --validate=false \
-            -f kubernetes/ \
-            -o name
+          docker run --rm \
+            -v "${PWD}/kubernetes:/manifests:ro" \
+            ghcr.io/yannh/kubeconform:latest \
+            -strict -summary /manifests/
 
           echo "Kubernetes manifest validation completed."
+
 
       - name: Display Deployment Images
         run: |
