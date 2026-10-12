@@ -244,7 +244,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
 
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -304,3 +304,38 @@ jobs:
           git diff -- \
             kubernetes/backend-deployment.yaml \
             kubernetes/frontend-deployment.yaml
+
+      
+      # =====================================================
+      # STAGE 7: COMMIT AND PUSH UPDATED MANIFESTS
+      # =====================================================
+
+      - name: Configure Git Identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit Updated Kubernetes Manifests
+        run: |
+          echo "Checking for Kubernetes manifest changes..."
+
+          git add \
+            kubernetes/backend-deployment.yaml \
+            kubernetes/frontend-deployment.yaml
+
+          if git diff --cached --quiet; then
+            echo "No manifest changes to commit."
+          else
+            git commit -m "ci: update Kubernetes images to ${GITHUB_SHA} [skip ci]"
+          fi
+
+      - name: Push Updated Manifests
+        run: |
+          echo "Checking whether a commit needs to be pushed..."
+
+          if [ "$(git rev-parse HEAD)" = "${GITHUB_SHA}" ]; then
+            echo "No new commit was created. Skipping push."
+          else
+            git push origin HEAD:main
+            echo "Updated Kubernetes manifests pushed successfully."
+          fi
