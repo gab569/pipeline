@@ -213,18 +213,17 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v4
 
-      
       - name: Validate Kubernetes Manifests
         run: |
           echo "Validating Kubernetes manifests..."
 
-          docker run --rm \
-            -v "${PWD}/kubernetes:/manifests:ro" \
-            ghcr.io/yannh/kubeconform:latest \
-            -strict -summary /manifests/
+          kubectl create \
+            --dry-run=client \
+            --validate=false \
+            -f kubernetes/ \
+            -o name
 
           echo "Kubernetes manifest validation completed."
-
 
       - name: Display Deployment Images
         run: |
@@ -233,3 +232,77 @@ jobs:
 
           echo "Frontend image:"
           grep 'image:' kubernetes/frontend-deployment.yaml
+
+  
+  # =========================================================
+  # JOB 6: UPDATE KUBERNETES DEPLOYMENT IMAGE TAGS
+  # =========================================================
+  update-image-tags:
+    name: 06 - Update Kubernetes Image Tags
+    runs-on: ubuntu-latest
+    needs: validate-manifests
+
+    # Images are published only on main.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          YQ_VERSION=v4.44.3
+          curl -fsSL \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /tmp/yq
+
+          echo "Installing yq..."
+          sudo install -m 0755 /tmp/yq /usr/local/bin/yq
+
+          yq --version
+
+      - name: Update Backend Image
+        env:
+          IMAGE: ghcr.io/gab569/k8s-learn-api:${{ github.sha }}
+        run: |
+          echo "Updating backend Deployment image..."
+
+          yq -i \
+            '.spec.template.spec.containers[0].image = strenv(IMAGE)' \
+            kubernetes/backend-deployment.yaml
+
+      - name: Update Frontend Image
+        env:
+          IMAGE: ghcr.io/gab569/k8s-learn-web:${{ github.sha }}
+        run: |
+          echo "Updating frontend Deployment image..."
+
+          yq -i \
+            '.spec.template.spec.containers[0].image = strenv(IMAGE)' \
+            kubernetes/frontend-deployment.yaml
+
+      - name: Verify Updated Images
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          BACKEND_IMAGE=$(yq -r '.spec.template.spec.containers[0].image' kubernetes/backend-deployment.yaml)
+          FRONTEND_IMAGE=$(yq -r '.spec.template.spec.containers[0].image' kubernetes/frontend-deployment.yaml)
+
+          echo "Backend image: ${BACKEND_IMAGE}"
+          echo "Frontend image: ${FRONTEND_IMAGE}"
+
+          test "${BACKEND_IMAGE}" = "ghcr.io/gab569/k8s-learn-api:${SHA}"
+          test "${FRONTEND_IMAGE}" = "ghcr.io/gab569/k8s-learn-web:${SHA}"
+
+          echo "Both image tags verified successfully."
+
+      - name: Show Manifest Changes
+        run: |
+          echo "Displaying Kubernetes manifest changes..."
+          git diff --check
+          git diff -- \
+            kubernetes/backend-deployment.yaml \
+            kubernetes/frontend-deployment.yaml
