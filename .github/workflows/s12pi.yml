@@ -213,7 +213,7 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v4
 
-            - name: Validate Kubernetes Manifests
+      - name: Validate Kubernetes Manifests
         run: |
           echo "Validating Kubernetes manifests..."
 
