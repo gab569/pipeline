@@ -1,28 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
-
 metadata:
   name: k8s-learn-api
   namespace: s11gabriel
-
 spec:
   replicas: 1
-
   selector:
     matchLabels:
       app: k8s-learn-api
-
   template:
     metadata:
       labels:
         app: k8s-learn-api
-
     spec:
       containers:
         - name: backend
-          image: ghcr.io/gab569/k8s-learn-api:0b4ed2b88900ce962e42aa4edbd963ccb605a46b
+          image: ghcr.io/gab569/k8s-learn-api:c74e5f69e0e518fb36d50d5a98b193cf16849e17
           imagePullPolicy: IfNotPresent
-
           ports:
             - containerPort: 4000
           securityContext:
